@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Immortalis Brain</title>
+<meta name="description" content="Personal Immortalis speaking core — separate from Gridiron Vision." />
+<style>
+:root {
+  --bg: #05070c;
+  --fg: #e9eef3;
+  --muted: #8d98a6;
+  --ice: #35e0ff;
+  --gold: #c9a227;
+  --border: rgba(255,255,255,.12);
+  --surface: rgba(14,20,28,.88);
+  --font: "Satoshi", system-ui, sans-serif;
+  --display: "Cabinet Grotesk", system-ui, sans-serif;
+}
+@import url("https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@800&f[]=satoshi@400,500,700&display=swap");
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font-family: var(--font); }
+button, input, textarea { font: inherit; }
+.app { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
+#globe { flex: 1; min-height: 38vh; }
+header { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; position: relative; z-index: 2; }
+.kicker { font-family: var(--display); font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: var(--ice); font-weight: 800; }
+.sub { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+.ghost { background: none; border: 0; color: var(--muted); padding: 8px 10px; }
+.dock { border-top: 1px solid var(--border); background: var(--surface); padding: 10px 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.log { max-height: 22vh; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
+.msg { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; font-size: 14px; line-height: 1.5; max-width: 72ch; }
+.msg.you { align-self: flex-end; border-color: rgba(53,224,255,.35); background: rgba(53,224,255,.1); }
+.chips { display: flex; gap: 6px; overflow-x: auto; }
+.chip, .btn { background: rgba(255,255,255,.04); border: 1px solid var(--border); color: var(--fg); border-radius: 999px; padding: 8px 12px; font-size: 12px; }
+.btn.ice { background: rgba(53,224,255,.16); border-color: rgba(53,224,255,.5); color: #d8fbff; font-weight: 700; }
+.row { display: flex; gap: 8px; align-items: center; }
+input, textarea { width: 100%; background: #0b1118; border: 1px solid var(--border); color: var(--fg); border-radius: 8px; padding: 10px; }
+.engage { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 96px; z-index: 3; background: linear-gradient(180deg, transparent 40%, var(--bg)); }
+.engage p { color: var(--muted); font-size: 12px; max-width: 28ch; text-align: center; }
+.teach { border: 1px solid rgba(53,224,255,.3); border-radius: 12px; padding: 10px; display: grid; gap: 8px; }
+[hidden] { display: none !important; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.183.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <div class="kicker">Immortalis Brain</div>
+      <div class="sub" id="status">Standby · personal core · not Gridiron</div>
+    </div>
+    <button class="ghost" id="mute">Voice on</button>
+  </header>
+  <div id="globe"></div>
+  <div class="engage" id="gate">
+    <button class="btn ice" id="engage">Engage core</button>
+    <p>Personal brain. Invoices, ops, and the full working file live here — not inside Gridiron.</p>
+  </div>
+  <div class="dock" id="dock" hidden>
+    <div class="log" id="log"></div>
+    <div class="chips" id="chips"></div>
+    <div class="teach" id="teach" hidden>
+      <div class="kicker">Teach</div>
+      <input id="tt" placeholder="Title" />
+      <textarea id="tb" rows="3" placeholder="What should I remember?"></textarea>
+      <div class="row">
+        <button class="btn ice" id="tsave">Save note</button>
+        <button class="ghost" id="tcancel">Cancel</button>
+      </div>
+    </div>
+    <form class="row" id="ask">
+      <input id="q" placeholder="Ask the brain…" autocomplete="off" />
+      <button class="btn" type="button" id="teachbtn">Teach</button>
+      <button class="btn ice" type="submit">Speak</button>
+    </form>
+  </div>
+</div>
+<script type="module">
+import * as THREE from "three";
+
+const KEY = "immortalis-brain-taught-v1";
+const load = () => { try { return JSON.parse(localStorage.getItem(KEY) || "[]"); } catch { return []; } };
+const save = (rows) => localStorage.setItem(KEY, JSON.stringify(rows.slice(0, 80)));
+
+const MODULES = [
+  ["Identity", "Personal Immortalis core — outside Gridiron."],
+  ["Gridiron product", "The football app you built: Vision, film, roster, 3D field."],
+  ["Humanoid", "Studio rig, gait, height/weight scale."],
+  ["Field ops", "New England residential / furniture moving: quotes, invoices, 72-hour clock."],
+  ["Teach", "Anything you store on this device."],
+];
+
+const PROMPTS = ["Status", "Who are you", "Field ops", "Draft a quote", "Humanoid", "What is Gridiron"];
+
+function strip(html) {
+  return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function answer(q) {
+  const s = q.toLowerCase();
+  const notes = load();
+  const hit = notes.find((n) => s.includes(n.title.toLowerCase()));
+  if (hit) return `<b>Taught: ${hit.title}</b><p>${hit.body}</p>`;
+  if (/who are you|what are you|introduce/.test(s)) {
+    return `<b>Immortalis Brain.</b><p>Personal core. I hold the full working file: the football product you built, the humanoid, and field operations — quotes, invoices, New England moves. Gridiron’s in-app agent is football-only. This file is the one you develop.</p>`;
+  }
+  if (/status|what do you know|systems/.test(s)) {
+    return `<b>Compiled</b><ul>${MODULES.map(([a,b]) => `<li><b>${a}</b> — ${b}</li>`).join("")}</ul><p>${notes.length} taught notes on this device.</p>`;
+  }
+  if (/field ops|moving|invoice|quote|thumbtack|schedule|furniture|logistics/.test(s)) {
+    return `<b>Field ops</b><p>New England residential and furniture moving. I can draft a quote outline, an invoice line, a day’s schedule, or a 72-hour Thumbtack reply. Give me rooms, stairs, date, and crew.</p>`;
+  }
+  if (/quote/.test(s)) {
+    return `<b>Quote outline</b><p>Job date — / origin — / destination — / stairs — / crew — / truck — / hourly vs flat / deposit. Reply with the facts and I will fill it.</p>`;
+  }
+  if (/humanoid|gait|anatomy|rig/.test(s)) {
+    return `<b>Humanoid</b><p>Head yaw/pitch/roll. Spine flex, rotate, lateral. Arms and legs with hip/shoulder five-way, knee, ankle, toes. Gait: heel lift → swing → heel strike → weight transfer. Scale to player height and weight inside Gridiron Vision — this brain only stores the spec.</p>`;
+  }
+  if (/gridiron|football|film|roster|fsu/.test(s)) {
+    return `<b>Gridiron product</b><p>Separate app. Football agent there starts with roster metrics, 2026 tape, and film you mark. Do not pour invoices into that agent. Open Gridiron Vision for live tracking.</p>`;
+  }
+  return `<b>Listening.</b><p>I am the personal Immortalis brain, not the Gridiron agent. Ask status, field ops, humanoid, or teach me a note.</p>`;
+}
+
+/* globe */
+const el = document.getElementById("globe");
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 40);
+camera.position.set(0, 0.1, 4.3);
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setClearColor(0x000000, 0);
+el.appendChild(renderer.domElement);
+const root = new THREE.Group();
+scene.add(root);
+const geo = new THREE.IcosahedronGeometry(1.56, 2);
+root.add(new THREE.LineSegments(new THREE.WireframeGeometry(geo), new THREE.LineBasicMaterial({ color: 0x3ec7ff, transparent: true, opacity: 0.72 })));
+const dense = new THREE.IcosahedronGeometry(1.48, 3);
+root.add(new THREE.Points(dense, new THREE.PointsMaterial({ color: 0x7cf6ff, size: 0.04, transparent: true, opacity: 0.9 })));
+root.add(new THREE.Mesh(new THREE.SphereGeometry(0.28, 24, 24), new THREE.MeshBasicMaterial({ color: 0x7cf6ff, transparent: true, opacity: 0.5 })));
+let mode = "idle", t = 0;
+function resize() {
+  const w = el.clientWidth || 1, h = el.clientHeight || 1;
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+  renderer.setSize(w, h, false);
+}
+new ResizeObserver(resize).observe(el); resize();
+(function tick() {
+  requestAnimationFrame(tick);
+  t += 0.016;
+  const speak = mode === "speak" ? 1 : 0;
+  root.rotation.y += 0.0035 + speak * 0.004;
+  root.scale.setScalar(1 + speak * 0.04 * Math.sin(t * 11));
+  renderer.render(scene, camera);
+})();
+
+const log = document.getElementById("log");
+const muteBtn = document.getElementById("mute");
+let muted = false, engaged = false;
+function speak(text) {
+  if (muted || !speechSynthesis) { mode = "idle"; return; }
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text.slice(0, 1400));
+  u.rate = 1.02; u.pitch = 0.88;
+  u.onstart = () => { mode = "speak"; };
+  u.onend = () => { mode = "idle"; };
+  speechSynthesis.speak(u);
+}
+function push(html, who = "core") {
+  const d = document.createElement("div");
+  d.className = "msg " + who;
+  d.innerHTML = html;
+  log.appendChild(d);
+  log.scrollTop = log.scrollHeight;
+  if (who === "core") speak(strip(html));
+}
+function ask(q) {
+  if (!q.trim()) return;
+  push(q, "you");
+  const teach = q.match(/^(?:teach|remember)\s*[:\-]\s*(.+)$/i);
+  if (teach) {
+    const rest = teach[1];
+    const parts = rest.split(/\s+[—\-]\s+/);
+    const title = (parts[0] || "Note").slice(0, 80);
+    const body = parts.slice(1).join(" — ") || rest;
+    const rows = [{ id: Date.now(), title, body }, ...load()];
+    save(rows);
+    push(`<b>Learned: ${title}</b><p>${body}</p>`);
+    return;
+  }
+  push(answer(q));
+}
+
+document.getElementById("chips").innerHTML = PROMPTS.map((p) => `<button class="chip" data-p="${p}">${p}</button>`).join("");
+document.getElementById("chips").onclick = (e) => { const b = e.target.closest("[data-p]"); if (b) ask(b.dataset.p); };
+document.getElementById("ask").onsubmit = (e) => { e.preventDefault(); const i = document.getElementById("q"); ask(i.value); i.value = ""; };
+document.getElementById("teachbtn").onclick = () => { document.getElementById("teach").hidden = !document.getElementById("teach").hidden; };
+document.getElementById("tcancel").onclick = () => { document.getElementById("teach").hidden = true; };
+document.getElementById("tsave").onclick = () => {
+  const title = document.getElementById("tt").value.trim();
+  const body = document.getElementById("tb").value.trim();
+  if (!title || !body) return;
+  save([{ id: Date.now(), title, body }, ...load()]);
+  document.getElementById("tt").value = "";
+  document.getElementById("tb").value = "";
+  document.getElementById("teach").hidden = true;
+  push(`<b>Learned: ${title}</b><p>${body}</p>`);
+};
+muteBtn.onclick = () => {
+  muted = !muted;
+  if (muted) speechSynthesis.cancel();
+  muteBtn.textContent = muted ? "Muted" : "Voice on";
+};
+document.getElementById("engage").onclick = () => {
+  engaged = true;
+  document.getElementById("gate").hidden = true;
+  document.getElementById("dock").hidden = false;
+  document.getElementById("status").textContent = "Online · personal core · not Gridiron";
+  speechSynthesis.getVoices();
+  push(`<b>Immortalis Brain online.</b><p>Personal core. Field ops, invoices, and the full working file live here. Gridiron’s agent stays football-only.</p>`);
+};
+</script>
+</body>
+</html>
